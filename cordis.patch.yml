@@ -1,0 +1,10 @@
+# dsh-status-glow bundle patch.
+#
+# Host half: registers /dsh-status-glow/status.js and injects
+# <script defer src="/dsh-status-glow/status.js"> into the web GUI index
+# (same injection pattern as dsh-whale-widget), so the browser half can
+# restyle the "Deep diving..." working indicator.
+
+- insert:
+    - id: dsh-status-glow
+      name: dsh-status-glow

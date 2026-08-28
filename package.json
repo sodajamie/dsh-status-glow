@@ -1,0 +1,51 @@
+{
+  "name": "dsh-status-glow",
+  "version": "0.2.0",
+  "description": "DSH 工作状态指示「Deep diving...」改为自定义文本，支持纯色/渐变/辉光等文字特效，并提供设置页快捷入口（下拉特效 + 输入文本，即时生效无需重启）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "status",
+    "ui"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sodajamie/dsh-status-glow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sodajamie/dsh-status-glow/issues"
+  },
+  "homepage": "https://github.com/sodajamie/dsh-status-glow#readme",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.6",
+    "react": "^18.2.0"
+  },
+  "license": "MIT"
+}

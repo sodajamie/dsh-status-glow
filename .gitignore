@@ -1,0 +1,10 @@
+# dependencies
+node_modules/
+
+# logs / runtime artifacts
+*.log
+*.jsonl
+
+# OS noise
+.DS_Store
+Thumbs.db
