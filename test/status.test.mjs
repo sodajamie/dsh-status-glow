@@ -274,16 +274,33 @@ check('池结构：thinking/tool/command/default 每池 ≥10 条且字段完整
   }
 })
 
-check('无相邻重复：同池连续 50 次抽取无连续相同文案（含跨轮）', () => {
+check('无相邻重复（allowRepeat=false）：同池连续 50 次无连续相同文案（含跨轮）', () => {
   core.resetPools()
   core.registerPool(POOLS.thinking)
   let last = null
   for (let i = 0; i < 50; i++) {
-    const item = core.draw('pool:thinking')
+    const item = core.draw('pool:thinking', false)
     assert.ok(item && item.text, 'draw 应返回候选')
     assert.notEqual(item.text, last, `第 ${i} 次与上次重复: ${item.text}`)
     last = item.text
   }
+  core.resetPools()
+})
+
+check('允许重复（默认 poolRepeat=true）：可出现相邻重复', () => {
+  // 用 2 项池保证相邻重复几乎必然出现（跨轮无队首交换），避免 12 项池的随机抖动
+  core.resetPools()
+  core.registerPool({ type: 'r', candidates: [{ text: 'X', status: 'r' }, { text: 'Y', status: 'r' }] })
+  let last = null
+  let repeats = 0
+  for (let i = 0; i < 50; i++) {
+    const item = core.draw('pool:r') // 不传 allowRepeat → 走默认（允许重复）
+    if (item.text === last) repeats++
+    last = item.text
+  }
+  assert.ok(repeats > 0, `2 项池 50 次应出现相邻重复（实际 0 次）`)
+  assert.equal(core.normalizeConfig(null).poolRepeat, true, 'poolRepeat 默认 true')
+  assert.equal(core.normalizeConfig({ poolRepeat: false }).poolRepeat, false)
   core.resetPools()
 })
 
@@ -328,6 +345,61 @@ check('draw 未知池返回 null；usePools 配置归一化默认 false', () => 
   assert.equal(core.normalizeConfig({ usePools: true }).usePools, true)
   assert.equal(core.normalizeConfig({ usePools: 'yes' }).usePools, false)
   core.resetPools()
+})
+
+check('normalizePoolCustoms：合法保留、非法过滤、weight 默认 1', () => {
+  const out = core.normalizePoolCustoms({
+    thinking: [
+      { text: '自定义思考文案', weight: 3 },
+      { text: '', weight: 5 },
+      { text: 123 },
+      { text: '默认权重' },
+    ],
+    tool: 'not-array',
+    unknown: [{ text: '新池文案' }],
+  })
+  assert.equal(out.thinking.length, 2)
+  assert.equal(out.thinking[0].weight, 3)
+  assert.equal(out.thinking[1].weight, 1)
+  assert.ok(!out.tool, '非数组应丢弃')
+  assert.equal(out.unknown.length, 1, '未知池键保留（可映射未来注册池）')
+  assert.deepEqual(core.normalizePoolCustoms(null), {})
+})
+
+check('normalizeEffects：合法保留、key 去重、非法过滤', () => {
+  const out = core.normalizeEffects([
+    { key: 'a', label: '特效A', config: { color: '#ff0000', gradientColors: [] } },
+    { key: 'a', label: '重复key' },
+    { key: 'b', label: '', config: { gradientColors: ['#00f', '#0ff'] } },
+    { key: 'c' },
+    'junk',
+  ])
+  assert.equal(out.length, 3)
+  assert.equal(out[0].key, 'a')
+  assert.equal(out[1].label, 'b', '空 label 回退为 key')
+  assert.ok(out[1].config.gradientColors.length === 2)
+  assert.deepEqual(core.normalizeEffects('x'), [])
+})
+
+check('applyPoolCustoms：新建池 + 并入已有池', () => {
+  // 1) 不存在的池键会被新建（空池 + 自定义项）
+  const pools = {}
+  core.applyPoolCustoms(pools, {
+    thinking: [{ text: '自定义思考', weight: 2 }],
+    mypool: [{ text: '新池文案' }],
+  })
+  assert.equal(pools['pool:thinking'].candidates.length, 1)
+  assert.equal(pools['pool:thinking'].candidates[0].text, '自定义思考')
+  assert.equal(pools['pool:mypool'].candidates[0].text, '新池文案')
+  assert.equal(pools['pool:mypool'].candidates[0].tags[0], 'custom')
+  // 2) 并入已有池：候选数 +1，自定义项追加在末尾（用副本避免污染 POOLS）
+  const m2 = { 'pool:tool': { type: 'tool', candidates: POOLS.tool.candidates.slice() } }
+  core.applyPoolCustoms(m2, { tool: [{ text: '自定义工具', weight: 1 }] })
+  assert.equal(m2['pool:tool'].candidates.length, POOLS.tool.candidates.length + 1)
+  assert.equal(m2['pool:tool'].candidates[POOLS.tool.candidates.length].text, '自定义工具')
+  // 3) 非法入参不抛错
+  core.applyPoolCustoms(null, null)
+  core.applyPoolCustoms({}, { thinking: 'not-array' })
 })
 
 console.log(`\n结果: ${passed} 通过, ${failed} 失败`)

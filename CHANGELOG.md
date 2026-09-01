@@ -3,6 +3,20 @@
 本项目的显著变更记录于此文件。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-09-01
+
+### 新增
+
+- **随机抽取允许重复**：`poolRepeat` 配置（默认 `true` = 真随机、允许相邻重复）；设为 `false` 时回退到洗牌式无相邻重复抽取
+- **自定义文案池内容**：`poolCustoms` 配置（`{ [poolKey]: [{ text, weight }] }`），可向 thinking/tool/command/default 任意池追加自定义文案，参与加权随机抽取（默认权重 1）
+- **自定义特效预设**：`effects` 配置（`[{ key, label, config }]`），自定义特效出现在设置页「文字特效」下拉框，与内置预设同样支持预览与应用
+- 设置页新增：「允许重复」开关、「自定义特效」表单（名称 / 渐变或纯色 / 辉光 / 动画 + 删除）、「自定义文案池」表单（池 / 文案 / 权重 + 删除）
+
+### 变更
+
+- `configure()/getConfig()` 新增 `poolRepeat`、`poolCustoms`、`effects` 字段（均持久化）
+- 单元测试扩展至 48 项（允许重复 / 无相邻重复开关 / 池自定义归一化 / 特效归一化 / 池合并）
+
 ## [0.3.0] - 2026-09-01
 
 ### 新增
