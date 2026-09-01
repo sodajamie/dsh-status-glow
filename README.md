@@ -98,7 +98,7 @@ DSH 设置里新增「**状态文字**」分区（`lib/client.js` 通过 `ctx.sl
 
 `configure({ usePools: true })` 或设置页勾选「随机文案」后，总状态文案按状态从 `lib/text-pools.js` 抽取：
 
-- **状态分类**（`detectStatus`）：`thinking`（思考/Think/推理）、`tool`（工具/tool/调用）、`command`（命令/command/shell），未命中回退 `default` 池；**按关键词在上下文中的「最后出现位置」判定**（最新内容 = 当前阶段，历史回合的「思考」不会抢先）；信号来自 turnstatus 邻居 + 当前回合内容；上下文剔除自身替换文案；
+- **状态信号（权威）**：宿主端订阅 DSH 会话事件（`ctx.on('session/event')`：推理块→`thinking`、工具调用→`tool`、shell 类工具（bash/pwsh/…）→`command`、回合结束→`default`），经 `/dsh-status-glow/state` 暴露，浏览器每 1s 轮询；DOM 文本检测仅作兜底。优先级：强制预览 > 宿主权威 > DOM 兜底；
 - **状态强制预览**（设置页「状态预览」按钮，或 `window.__dshStatusGlow.debugSetStatus('tool'|'auto')`）：逐个状态检查前端效果——立即把状态元素切换为该池文案与特效；「自动」恢复自动检测；
 - **变动时机**：同一状态下每 **5 秒**随机换文一次；状态交替（思考→工具→命令）时**立即**换文；
 - **换文动画**：老虎机式快速滚动（60–80ms/步、5–7 步后落地，行业常见的 status ticker / slot-machine 效果）；
@@ -195,6 +195,7 @@ dsh plugin --profile desktop add link:C:\Users\Administrator\dsh-status-glow
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
+| `0.9.0` | 2026-09-01 | 状态检测重构为宿主会话事件（session/event 折叠 + `/state` 轮询），摆脱 DOM 文本猜测 |
 | `0.8.0` | 2026-09-01 | 修复状态总判为 thinking：分类改为「最后出现位置」优先（最新阶段胜出） |
 | `0.7.0` | 2026-09-01 | 修复纯色特效露出应用蓝底 + 检测升级（当前回合扫描）+ 状态强制预览（设置页「状态预览」按钮） |
 | `0.6.0` | 2026-09-01 | 修复自定义配置跨重启丢失（宿主文件持久化 `~/.dsh/dsh-status-glow-config.json`，端口无关） |

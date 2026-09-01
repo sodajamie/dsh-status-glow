@@ -3,6 +3,18 @@
 本项目的显著变更记录于此文件。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.0] - 2026-09-01
+
+### 变更（重构检测信号，参照 whale-on-desk 的 session/event 方案）
+
+- **状态检测改为宿主端会话事件**：宿主（`lib/index.js`）订阅 `ctx.on('session/event')`（回合/流式块/工具调用/工具结果/回合结束——持久会话事件），折叠为小型状态机：
+  - `assistant/chunk` 且块类型非 `text-delta` → `thinking`（推理块）
+  - `tool/call` → `tool`；工具名匹配 `bash|pwsh|powershell|shell|cmd|terminal|sh|zsh|fish|nu|ps1?` → `command`
+  - `tool/result` → 回到 `thinking`；`turn/end` → `default`
+  - 新增 `/dsh-status-glow/state` 路由暴露 `{ status, tool, ts }`
+- **浏览器端**：每 1 秒轮询 `/dsh-status-glow/state`，状态变化立即重抽；状态优先级：**强制预览 > 宿主权威 > DOM 文本检测（兜底）**
+- 彻底摆脱 DOM 文本猜测（此前 turnstatus 上下文含全量会话文本导致总判 thinking）
+
 ## [0.8.0] - 2026-09-01
 
 ### 修复
