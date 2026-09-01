@@ -3,6 +3,13 @@
 本项目的显著变更记录于此文件。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.0] - 2026-09-01
+
+### 修复
+
+- **自定义配置跨重启丢失**：此前配置仅存 localStorage，而 localStorage 随 DSH 重启（随机端口）清空。现新增宿主端文件持久化（`/dsh-status-glow/settings` 路由，写入 `~/.dsh/dsh-status-glow-config.json`，端口无关）——`configure()` 每次变更同时写 localStorage 缓存与宿主文件；boot 时异步拉取宿主文件为权威配置（用户在拉取完成前手动改配置则不覆盖，避免吞操作）
+- 设置页重开/重启后还原：UI 初始状态改为从已持久化配置（`getConfig`）推导文本与全局特效，`localStorage['dsh-status-glow:ui']` 仅作补充
+
 ## [0.5.0] - 2026-09-01
 
 ### 新增

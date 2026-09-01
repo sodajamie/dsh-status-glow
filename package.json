@@ -1,6 +1,6 @@
 {
   "name": "dsh-status-glow",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "DSH 工作状态指示「Deep diving...」改为自定义文本：纯色/渐变/辉光特效、随机文案池按状态分流，并提供设置页快捷入口（即时生效无需重启）。",
   "type": "module",
   "main": "lib/index.js",
