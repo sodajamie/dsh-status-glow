@@ -3,110 +3,69 @@
 本项目的显著变更记录于此文件。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [0.9.0] - 2026-09-01
+## [0.2.0] - 2026-09-01
 
-### 变更（重构检测信号，参照 whale-on-desk 的 session/event 方案）
+### 概述
 
-- **状态检测改为宿主端会话事件**：宿主（`lib/index.js`）订阅 `ctx.on('session/event')`（回合/流式块/工具调用/工具结果/回合结束——持久会话事件），折叠为小型状态机：
-  - `assistant/chunk` 且块类型非 `text-delta` → `thinking`（推理块）
-  - `tool/call` → `tool`；工具名匹配 `bash|pwsh|powershell|shell|cmd|terminal|sh|zsh|fish|nu|ps1?` → `command`
-  - `tool/result` → 回到 `thinking`；`turn/end` → `default`
-  - 新增 `/dsh-status-glow/state` 路由暴露 `{ status, tool, ts }`
-- **浏览器端**：每 1 秒轮询 `/dsh-status-glow/state`，状态变化立即重抽；状态优先级：**强制预览 > 宿主权威 > DOM 文本检测（兜底）**
-- 彻底摆脱 DOM 文本猜测（此前 turnstatus 上下文含全量会话文本导致总判 thinking）
-
-## [0.8.0] - 2026-09-01
-
-### 修复
-
-- **状态总是判定为 thinking**：检测上下文包含整个会话文本（turnstatus 祖先 `md3f7g_scroll` 的 textContent 是全部对话），而每轮都有「思考」阶段，历史「思考/Think」按注册顺序抢先命中 thinking。分类改为**「最后出现位置」优先**——各状态关键词在上下文中最后一次出现的位置，最靠后者即当前阶段（工具/命令摘要总在最新内容里，位置更靠后）；`registerStatusType` 支持 `regex` 字段参与位置分类（自定义 `detect` 函数仍按注册顺序兜底）
-
-## [0.7.0] - 2026-09-01
-
-### 修复
-
-- **纯色特效时显示应用原生蓝色渐变**：纯色路径原先 `removeProperty('background-image')`，会把应用自带的蓝色渐变背景露出来（表现为「特效消失」）。现改为 `background-image: none !important` 盖住
-- **按池特效/文案路由不准**：检测上下文补充「当前回合」扫描——爬到滚动容器（`md3f7g_scroll`/`wskvaw_scrollbody` 等）取最后 3 个子块文本，Think 标题 / 工具摘要 / 命令标识大多在回合内容里，比 turnstatus 邻居更可靠
+整合发布版：汇集 0.1.0 之后所有迭代（此前内部 0.2.0~0.9.0 的更新统一整合为本版本）。
+出厂默认配置 = 当前调校效果：全局白字无辉光，按状态池分配专属特效，随机文案池开箱即用。
 
 ### 新增
 
-- **状态强制预览**：`window.__dshStatusGlow.debugSetStatus('tool'|'thinking'|'command'|'default'|'auto')`——立即把当前状态元素切换为该池文案 + 该池特效（`auto` 解除强制恢复自动检测）
-- **设置页「状态预览」区**：思考 / 工具 / 命令 / 兜底 按钮 + 「自动」，逐状态检查前端效果（需 agent 正在工作时状态元素存在）
-
-## [0.6.0] - 2026-09-01
-
-### 修复
-
-- **自定义配置跨重启丢失**：此前配置仅存 localStorage，而 localStorage 随 DSH 重启（随机端口）清空。现新增宿主端文件持久化（`/dsh-status-glow/settings` 路由，写入 `~/.dsh/dsh-status-glow-config.json`，端口无关）——`configure()` 每次变更同时写 localStorage 缓存与宿主文件；boot 时异步拉取宿主文件为权威配置（用户在拉取完成前手动改配置则不覆盖，避免吞操作）
-- 设置页重开/重启后还原：UI 初始状态改为从已持久化配置（`getConfig`）推导文本与全局特效，`localStorage['dsh-status-glow:ui']` 仅作补充
-
-## [0.5.0] - 2026-09-01
-
-### 新增
-
-- **文案变动时机**：同一状态下每 5 秒随机换文一次（定时器）；状态交替（思考→工具→命令）时**立即**换文
-- **换文动画**：老虎机式快速滚动（60–80ms/步、5–7 步后落地，行业常见的 status ticker / slot-machine 效果）
-- **按池分配特效**：`poolEffects` 配置（`{ [poolKey]: 样式片段 }`），每个状态可指定专属特效（跟随全局 / 内置特效 / 自定义特效），开启 `usePools` 且命中该状态时生效
-- **池整表编辑**：`poolOverrides` 配置（`{ [poolKey]: [{ text, weight }] }`），完全替换该池文案（优先级高于内置池 + `poolCustoms` 追加）
-- **设置页 UI 优化**：每池卡片化——列表展示各池已有文本（内置 + 自定义），支持行内编辑（改文本/权重）、删除、添加，以及该池特效下拉与「恢复默认」
-
-### 变更
-
-- **状态检测修复**：检测上下文剔除自身替换文案（避免「正在思考…」反向污染分类）；检测范围加深到 6 层祖先 + 最近 6 个兄弟
-- 调试上报新增 `status`（检测到的状态）与 `orig`（应用原始文案），便于真机验证按池切换
-- 单元测试扩展至 51 项（整表覆盖 / 池特效解析 / 池特效归一化）
-
-## [0.4.0] - 2026-09-01
-
-### 新增
-
-- **随机抽取允许重复**：`poolRepeat` 配置（默认 `true` = 真随机、允许相邻重复）；设为 `false` 时回退到洗牌式无相邻重复抽取
-- **自定义文案池内容**：`poolCustoms` 配置（`{ [poolKey]: [{ text, weight }] }`），可向 thinking/tool/command/default 任意池追加自定义文案，参与加权随机抽取（默认权重 1）
-- **自定义特效预设**：`effects` 配置（`[{ key, label, config }]`），自定义特效出现在设置页「文字特效」下拉框，与内置预设同样支持预览与应用
-- 设置页新增：「允许重复」开关、「自定义特效」表单（名称 / 渐变或纯色 / 辉光 / 动画 + 删除）、「自定义文案池」表单（池 / 文案 / 权重 + 删除）
-
-### 变更
-
-- `configure()/getConfig()` 新增 `poolRepeat`、`poolCustoms`、`effects` 字段（均持久化）
-- 单元测试扩展至 48 项（允许重复 / 无相邻重复开关 / 池自定义归一化 / 特效归一化 / 池合并）
-
-## [0.3.0] - 2026-09-01
-
-### 新增
-
-- **随机文案池按状态分流**：`usePools` 配置开启后，总状态文案按状态类型从 `lib/text-pools.js` 抽取
-  - 状态分类：`thinking`（思考/Think/推理）、`tool`（工具/tool/正在调用）、`command`（命令/command/shell），未命中回退 `default` 池
-  - 无重复抽取：每池 Fisher-Yates 洗牌队列，同状态连续触发不出现相邻重复（含跨轮队首交换）
+- **随机文案池按状态分流**：`usePools` 默认开启，按状态类型（思考 / 工具 / 命令 / 兜底）从对应池抽取
+  - 无相邻重复抽取（默认）：每池 Fisher-Yates 洗牌队列 + 跨轮队首交换，同状态连续触发不重复
   - 权重支持：`weight: 2` 的文案出现频率约为 `weight: 1` 的两倍（默认 1）
-- **状态扩展接口**：`registerStatusType(type, {detect, poolId})` 与 `registerPool(pool)`，新增状态只需注册检测信号与文案池，主逻辑零改动
-- **设置页「随机文案」开关**：勾选即按状态分流抽取，即时生效无需重启
-- 宿主端新增 `/dsh-status-glow/text-pools.js` 路由（在 `status.js` 之前注入，保证文案池就绪）
-
-### 变更
-
-- `configure()` 新增 `usePools` 字段（默认 `false`，向后兼容：关闭时维持静态文本行为）
-- 单元测试扩展至 44 项（新增池结构 / 无相邻重复 / 权重占比 / 分类回退 / draw 边界）
-
-## [0.2.0] - 2026-08-28
-
-### 新增
-
-- **设置页快捷入口**：「状态文字」一级设置分区（特效下拉 + 文本输入 + 预览条 + 应用），即时生效无需重启
-- **可配置样式接口**：`window.__dshStatusGlow.configure()/getConfig()/resolveStyles()`，支持纯色 / 从左到右渐变 / 辉光（关闭、柔和白光、自定义多层）/ 动画（内置流动渐变），全部带默认值、类型校验与非法回退
-- **初始化参数**：`window.__DSH_STATUS_GLOW_CONFIG__`；运行时消息通道 `postMessage({__dshStatusGlow:'config', config})`
-- 配置持久化到 localStorage，页面刷新自动恢复
-
-### 变更
-
-- **精确命中**（v2）：只替换最下方总状态（祖先特征 + 屏幕位置评分 + 思考/消息上下文强排除 + shadow DOM 递归），思考旁文案不再被替换
+  - 随机是否允许相邻重复可切换：`poolRepeat`（`false` = 洗牌无相邻重复，默认；`true` = 真随机）
+- **文案变动时机**：同一状态下每 5 秒随机换文一次；状态交替（思考→工具→命令）时**立即**换文
+- **换文动画**：老虎机式快速滚动（60–80ms/步、5–7 步后落地）
+- **按池分配特效**：`poolEffects` 配置（`{ [poolKey]: 样式片段 }`），每个状态可指定专属特效
+  - 出厂默认：思考 = 平滑彩虹渐变 + 流动动画；工具 = 金黄渐变 + 柔和白光；命令 = 白字 + 蓝紫多层辉光；兜底 = 白字无辉光
+- **池整表编辑**：`poolOverrides` 配置（`{ [poolKey]: [{ text, weight }] }`）完全替换该池文案
+  - 设置页每池卡片化：列表展示、行内编辑（文本/权重）、删除、添加、该池特效下拉与「恢复默认」
+- **自定义文案池内容**：`poolCustoms` 配置（`{ [poolKey]: [{ text, weight }] }`）向任意池追加文案
+- **自定义特效预设**：`effects` 配置（`[{ key, label, config }]`），出现在设置页「文字特效」下拉框
+- **状态强制预览**：`window.__dshStatusGlow.debugSetStatus('tool'|'thinking'|'command'|'default'|'auto')`
+  - 设置页「状态预览」区：思考 / 工具 / 命令 / 兜底 按钮 + 「自动」，逐状态检查前端效果
+- **状态扩展接口**：`registerStatusType(type, {detect, poolId})` 与 `registerPool(pool)`，新增状态零改动
+- **宿主文件持久化**：配置写入 `~/.dsh/dsh-status-glow-config.json`（端口无关，跨 DSH 重启不丢），
+  localStorage 仅作缓存；设置页重开/重启后从持久化配置还原
 - **平滑彩虹渐变**：色相等距 30° 的 12 色标 + 首尾同色闭环，头尾过渡均匀无停顿
-- 调试上报通道（30s 节流 + 计算样式），辅助真机验证
+
+### 变更（检测与渲染）
+
+- **状态检测重构为宿主会话事件**（参照 whale-on-desk 的 session/event 方案）：
+  - 宿主订阅 `ctx.on('session/event')` 折叠为小型状态机：
+    `assistant/chunk`（非 text-delta）→ `thinking`；`tool/call` → `tool`（工具名匹配
+    `bash|pwsh|powershell|shell|cmd|terminal|sh|zsh|fish|nu|ps1?` → `command`）；
+    `tool/result` → 回到 `thinking`；`turn/end` → `default`
+  - 新增 `/dsh-status-glow/state` 路由暴露 `{ status, tool, ts }`；浏览器每 1 秒轮询，
+    状态变化立即重抽；优先级：**强制预览 > 宿主权威 > DOM 文本检测（兜底）**
+  - 彻底摆脱 DOM 文本猜测（此前 turnstatus 上下文含全量会话文本导致总判 thinking）
+- **精确命中最下方总状态**（v2）：祖先特征 + 屏幕位置评分 + 思考/消息上下文强排除 +
+  shadow DOM 递归，思考旁文案不再被替换；检测上下文补充「当前回合」扫描（滚动容器最后 3 个子块）
+- **分类按「最后出现位置」优先**：各状态关键词在上下文中最后一次出现的位置，最靠后者即当前阶段
+  （历史回合的「思考/Think」不会抢先）；`registerStatusType` 支持 `regex` 字段参与位置分类
+- **纯色特效不再露出应用原生蓝底**：纯色路径改为 `background-image: none !important` 盖住
+- 所有内联样式经 `!important` 强制，不被应用主题颜色覆盖；unglow 对称清理
+- 调试上报通道：`~/.dsh/dsh-status-glow-debug.jsonl`（30s 节流 + 计算样式 +
+  实际生效状态 `status` 与信号来源 `host`），辅助真机验证
+
+### 默认配置（出厂即当前调校效果）
+
+- 全局：白字（`#ffffff`）、无辉光、无动画；静态兜底文本「大肥鲸鱼正在深度烧烤...( ˊ꒳ˋ )ₚ✧」
+- `usePools: true`（按状态抽取）、`poolRepeat: false`（无相邻重复）
+- 内置文案池：思考 14 条 / 工具 12 条 / 命令 10 条 / 兜底 11 条（含权重）
+- 按池特效：思考 = 彩虹渐变 + 流动动画；工具 = 金黄渐变 + 柔和白光；
+  命令 = 白字 + 蓝紫多层辉光；兜底 = 白字无辉光
 
 ## [0.1.0] - 2026-08-28
 
 ### 新增
 
 - 初始版本：把「Deep diving...」替换为自定义文本，渐变彩虹文字 + 柔和白光辉光
+- 设置页快捷入口：「状态文字」一级设置分区（特效下拉 + 文本输入 + 预览条 + 应用），即时生效无需重启
+- 可配置样式接口：`window.__dshStatusGlow.configure()/getConfig()/resolveStyles()`，
+  支持纯色 / 从左到右渐变 / 辉光（关闭、柔和白光、自定义多层）/ 动画（内置流动渐变）
 - 宿主端 tapIndex 注入 + 状态替换渲染流程
 
-> 注：0.1.0 为开发期版本，未单独打 tag；其功能在 0.2.0 首个提交中一并发布。
+> 注：0.1.0 为开发期版本，未单独打 tag；其功能随 0.2.0 一并发布。

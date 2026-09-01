@@ -162,32 +162,38 @@ check('替换后文本不再命中（MutationObserver 不会自激/死循环）'
 })
 
 console.log('== 5. 自定义配置：默认值 / 校验 / 非法回退 ==')
-check('默认配置 = 现有行为（平滑彩虹渐变 + 柔和白光 + 无动画）', () => {
+check('默认配置 = v0.2.0 出厂配置（白字 + 按池特效 + usePools 开）', () => {
   const cfg = core.normalizeConfig(null)
-  assert.equal(cfg.text, '正在深度烧烤...')
-  assert.ok(Array.isArray(cfg.gradientColors) && cfg.gradientColors.length >= 2)
-  assert.equal(cfg.textShadow, '0 0 10px rgba(255,255,255,.4), 0 0 22px rgba(255,255,255,.22)')
+  assert.equal(cfg.text, '大肥鲸鱼正在深度烧烤...( ˊ꒳ˋ )ₚ✧')
+  assert.equal(cfg.gradientColors, null)
+  assert.equal(cfg.color, '#ffffff')
+  assert.equal(cfg.textShadow, false)
   assert.equal(cfg.animation, null)
+  assert.equal(cfg.usePools, true, 'usePools 默认开启（按状态抽取）')
+  assert.equal(cfg.poolRepeat, false, 'poolRepeat 默认关闭（洗牌无相邻重复）')
+  // 四池特效默认就绪
+  assert.ok(cfg.poolEffects.thinking && cfg.poolEffects.thinking.animation === 'flow')
+  assert.ok(Array.isArray(cfg.poolEffects.thinking.gradientColors) && cfg.poolEffects.thinking.gradientColors.length >= 2)
+  assert.ok(cfg.poolEffects.tool && cfg.poolEffects.tool.textShadow === 'soft-white')
+  assert.ok(cfg.poolEffects.command && Array.isArray(cfg.poolEffects.command.textShadow) && cfg.poolEffects.command.textShadow.length === 3)
+  assert.ok(cfg.poolEffects.default && cfg.poolEffects.default.color === '#ffffff')
   const st = core.resolveStyle(cfg)
-  assert.match(st.gradient, /^linear-gradient\(90deg,#ff6b6b/)
-  assert.equal(st.color, 'transparent')
-  assert.ok(st.shadow)
+  assert.equal(st.gradient, null)
+  assert.equal(st.color, '#ffffff')
+  assert.equal(st.shadow, null)
   assert.equal(st.animation, null)
-  // 平滑度：色相等距 30° 的 12 色标 + 首尾同色闭环（无缝）
-  const colors = cfg.gradientColors
-  assert.equal(colors.length, 13, '12 色标 + 首尾闭环')
-  assert.equal(colors[0].toLowerCase(), colors[colors.length - 1].toLowerCase(), '首尾同色无缝闭环')
 })
 check('text 覆盖 + 空串回退默认', () => {
   assert.equal(core.normalizeConfig({ text: '烧烤中...' }).text, '烧烤中...')
-  assert.equal(core.normalizeConfig({ text: '' }).text, '正在深度烧烤...')
-  assert.equal(core.normalizeConfig({ text: 123 }).text, '正在深度烧烤...')
+  assert.equal(core.normalizeConfig({ text: '' }).text, '大肥鲸鱼正在深度烧烤...( ˊ꒳ˋ )ₚ✧')
+  assert.equal(core.normalizeConfig({ text: 123 }).text, '大肥鲸鱼正在深度烧烤...( ˊ꒳ˋ )ₚ✧')
 })
-check('渐变数组：合法 hex 过滤、<2 色回退默认', () => {
+check('渐变数组：合法 hex 过滤、<2 色回退默认纯色', () => {
   const cfg = core.normalizeConfig({ gradientColors: ['#ff0000', '#0000ff', 'notacolor'] })
   assert.deepEqual(cfg.gradientColors, ['#ff0000', '#0000ff'])
   const bad = core.normalizeConfig({ gradientColors: ['#ff0000'] })
-  assert.ok(Array.isArray(bad.gradientColors) && bad.gradientColors.length >= 2, '单色应回退默认渐变')
+  assert.equal(bad.gradientColors, null, '单色应回退默认（白字）')
+  assert.equal(bad.color, '#ffffff')
 })
 check('纯色路径：color 写入并忽略渐变', () => {
   const cfg = core.normalizeConfig({ color: '#ff0000' })
@@ -197,11 +203,12 @@ check('纯色路径：color 写入并忽略渐变', () => {
   assert.equal(st.gradient, null)
   assert.equal(st.color, '#ff0000')
 })
-check('渐变优先于纯色；两者非法回退默认渐变', () => {
+check('渐变优先于纯色；两者非法回退默认纯色', () => {
   const both = core.normalizeConfig({ gradientColors: ['#ff0000', '#0000ff'], color: '#00ff00' })
   assert.ok(both.gradientColors && both.color === null, '渐变应胜出')
   const neither = core.normalizeConfig({ gradientColors: 'xx', color: 123 })
-  assert.ok(Array.isArray(neither.gradientColors), '应回退默认渐变')
+  assert.equal(neither.gradientColors, null, '两者非法应回退默认（白字）')
+  assert.equal(neither.color, '#ffffff')
 })
 check('textShadow：关闭 / 柔和白光 / 数组(字符串+对象) / 非法回退', () => {
   assert.equal(core.normalizeTextShadow(false), false)
@@ -287,20 +294,21 @@ check('无相邻重复（allowRepeat=false）：同池连续 50 次无连续相�
   core.resetPools()
 })
 
-check('允许重复（默认 poolRepeat=true）：可出现相邻重复', () => {
+check('允许重复（显式 allowRepeat=true）：可出现相邻重复', () => {
   // 用 2 项池保证相邻重复几乎必然出现（跨轮无队首交换），避免 12 项池的随机抖动
   core.resetPools()
   core.registerPool({ type: 'r', candidates: [{ text: 'X', status: 'r' }, { text: 'Y', status: 'r' }] })
   let last = null
   let repeats = 0
   for (let i = 0; i < 50; i++) {
-    const item = core.draw('pool:r') // 不传 allowRepeat → 走默认（允许重复）
+    const item = core.draw('pool:r', true) // 显式允许重复
     if (item.text === last) repeats++
     last = item.text
   }
   assert.ok(repeats > 0, `2 项池 50 次应出现相邻重复（实际 0 次）`)
-  assert.equal(core.normalizeConfig(null).poolRepeat, true, 'poolRepeat 默认 true')
+  assert.equal(core.normalizeConfig(null).poolRepeat, false, 'poolRepeat 默认 false（洗牌无相邻重复）')
   assert.equal(core.normalizeConfig({ poolRepeat: false }).poolRepeat, false)
+  assert.equal(core.normalizeConfig({ poolRepeat: true }).poolRepeat, true)
   core.resetPools()
 })
 
@@ -353,12 +361,13 @@ check('classify（最后出现位置）：最新阶段优先，历史思考不�
   core.resetPools()
 })
 
-check('draw 未知池返回 null；usePools 配置归一化默认 false', () => {
+check('draw 未知池返回 null；usePools 配置归一化默认 true', () => {
   core.resetPools()
   assert.equal(core.draw('pool:nope'), null)
-  assert.equal(core.normalizeConfig(null).usePools, false)
+  assert.equal(core.normalizeConfig(null).usePools, true)
   assert.equal(core.normalizeConfig({ usePools: true }).usePools, true)
   assert.equal(core.normalizeConfig({ usePools: 'yes' }).usePools, false)
+  assert.equal(core.normalizeConfig({ usePools: false }).usePools, false)
   core.resetPools()
 })
 
@@ -443,14 +452,16 @@ check('normalizePoolEffects：合法样式片段保留、非法过滤', () => {
   assert.deepEqual(core.normalizePoolEffects(null), {})
 })
 
-check('resolveCandidateStyle：usePools + 池特效 → 解析样式；否则 null', () => {
+check('resolveCandidateStyle：usePools + 池特效 → 解析样式；缺省池回退默认', () => {
   const cfg = core.normalizeConfig({
     usePools: true,
     poolEffects: { thinking: { color: '#ff0000', gradientColors: [] } },
   })
   const st = core.resolveCandidateStyle(cfg, 'thinking')
   assert.ok(st && st.gradient === null && st.color === '#ff0000')
-  assert.equal(core.resolveCandidateStyle(cfg, 'tool'), null, '未配置池特效的状态回退 null')
+  // 未显式配置的池回退出厂默认特效（thinking 之外也有默认池特效）
+  const toolSt = core.resolveCandidateStyle(cfg, 'tool')
+  assert.ok(toolSt && toolSt.gradient, '未配置池特效的状态应回退 DEFAULTS 特效（tool 默认金黄渐变）')
   const off = core.normalizeConfig({ usePools: false, poolEffects: { thinking: { color: '#0f0' } } })
   assert.equal(core.resolveCandidateStyle(off, 'thinking'), null, 'usePools 关闭时不启用池特效')
 })
