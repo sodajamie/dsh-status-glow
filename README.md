@@ -54,6 +54,8 @@ window.postMessage({ __dshStatusGlow: 'config', config: {...} }, '*')  // 消息
 | `usePools` | boolean | `false` | 随机文案池开关：`true` 时按状态（思考/工具/命令…）从 `lib/text-pools.js` + 自定义内容抽取；`false` 使用静态 `text`（向后兼容） |
 | `poolRepeat` | boolean | `true` | 随机是否允许相邻重复：`true`=真随机（默认）；`false`=洗牌式无相邻重复（含跨轮队首交换） |
 | `poolCustoms` | object | `{}` | 各池自定义文案：`{ thinking: [{ text, weight }], … }`，追加到对应池并参与加权抽取（默认权重 1） |
+| `poolOverrides` | object | `{}` | 各池整表覆盖：`{ thinking: [{ text, weight }], … }`，存在时**完全替换**该池文案（优先级最高；设置页增删改落盘于此） |
+| `poolEffects` | object | `{}` | 按池特效：`{ thinking: { 样式片段 }, … }`，开启 `usePools` 且命中该状态时用池特效替代全局特效 |
 | `effects` | array | `[]` | 自定义特效预设：`[{ key, label, config }]`，`config` 为样式片段（`gradientColors`/`color`/`textShadow`/`animation`），出现在设置页特效下拉框 |
 
 所有字段提供默认值、类型校验与非法回退（例如 `gradientColors:['#ff0000']` 只有 1 色 → 回退默认彩虹渐变；`textShadow:42` → 回退柔和白光）。`window.__dshStatusGlow.getConfig()` 可读取当前归一化后的配置。
@@ -87,7 +89,7 @@ DSH 设置里新增「**状态文字**」分区（`lib/client.js` 通过 `ctx.sl
 - **文字特效**（下拉栏）：彩虹渐变·柔和白光（默认）/ 红蓝渐变 / 霓虹辉光 / 金色渐变 / 纯白·无辉光 / 流动渐变 / **自定义特效**；
 - **文本内容**（输入栏）：替换后的文案，回车或点「应用」生效；
 - **随机文案 + 允许重复**（开关）：按状态分流抽取；「允许重复」默认开（真随机），关闭则相邻不重复；
-- **自定义文案池 / 自定义特效**（表单 + 列表）：向各池追加文案（含权重）、创建自定义特效，即时生效；
+- **各池卡片**（文案池区）：每个状态一张卡片——列表展示该池全部文本（内置 + 自定义），行内编辑（改文本/权重）、删除、添加，特效下拉为该状态指定专属特效，「恢复默认」一键还原；编辑即时生效；
 - **应用**按钮：即时调用 `window.__dshStatusGlow.configure(...)`，**无需重启 DSH**，状态元素立即刷新样式与文本。
 
 UI 选择与文本持久化到 `localStorage`（`dsh-status-glow:ui`），完整配置由 `status.js` 持久化到 `dsh-status-glow:config`——页面刷新后自动恢复（origin 作用域；DSH 重启换随机端口会回到默认，可再用设置页点一次应用，或经下方 `configure()` 程序化设置）。
@@ -96,21 +98,28 @@ UI 选择与文本持久化到 `localStorage`（`dsh-status-glow:ui`），完整
 
 `configure({ usePools: true })` 或设置页勾选「随机文案」后，总状态文案按状态从 `lib/text-pools.js` 抽取：
 
-- **状态分类**（`detectStatus`，启发式）：`thinking`（思考/Think/推理）、`tool`（工具/tool/正在调用）、`command`（命令/command/shell），未命中回退 `default` 池；
+- **状态分类**（`detectStatus`，启发式）：`thinking`（思考/Think/推理）、`tool`（工具/tool/正在调用）、`command`（命令/command/shell），未命中回退 `default` 池；检测上下文会剔除自身替换文案，避免反向污染；
+- **变动时机**：同一状态下每 **5 秒**随机换文一次；状态交替（思考→工具→命令）时**立即**换文；
+- **换文动画**：老虎机式快速滚动（60–80ms/步、5–7 步后落地，行业常见的 status ticker / slot-machine 效果）；
 - **随机抽取**：Fisher-Yates 加权洗牌队列；默认**允许相邻重复**（`poolRepeat: true`，真随机）；设 `false` 时相邻不重复（含跨轮队首交换）；
 - **权重**：`weight: 2` 的文案出现频率约为 `weight: 1` 的两倍（默认 1）；
-- **自定义池内容**（设置页「自定义文案池」或配置 `poolCustoms`）：
+- **按池特效**（设置页每池卡片「特效」下拉，或配置 `poolEffects`）：每个状态可指定专属特效，覆盖全局特效：
 
 ```js
 window.__dshStatusGlow.configure({
-  poolCustoms: {
-    thinking: [{ text: '自定义思考文案', weight: 3 }],
-    default:  [{ text: '兜底自定义', weight: 1 }],
-  },
+  poolEffects: { thinking: { color: '#ff0000', gradientColors: [] } },
 })
 ```
 
-- **自定义特效**（设置页「自定义特效」或配置 `effects`，出现在特效下拉框）：
+- **池整表编辑**（设置页每池卡片，或配置 `poolOverrides`）：完全替换该池文案（内置 + 自定义同表维护）：
+
+```js
+window.__dshStatusGlow.configure({
+  poolOverrides: { tool: [{ text: '只留这一条工具文案', weight: 1 }] },
+})
+```
+
+- **自定义特效**（设置页「自定义特效」或配置 `effects`，出现在特效下拉框与各池特效下拉）：
 
 ```js
 window.__dshStatusGlow.configure({
@@ -163,7 +172,7 @@ dsh plugin --profile desktop add link:C:\Users\Administrator\dsh-status-glow
 
 ## 验证
 
-- 单元测试：`node test\status.test.mjs`（覆盖匹配/评分/选择/配置归一化与非法回退/随机文案池/自定义池与特效，48 项断言）。
+- 单元测试：`node test\status.test.mjs`（覆盖匹配/评分/选择/配置归一化与非法回退/随机文案池/自定义池与特效/按池特效，51 项断言）。
 - 真机：让任意 agent 开始工作 → **最下方总状态**应显示自定义文本与样式；「思考」旁的状态文案保持原样（不替换、不加样式）。
 - 设置页：DSH 设置 → 「状态文字」→ 选特效 / 改文本 → 「应用」→ 总状态即时更新（无需重启）。
 - DevTools（F12）：`window.__dshStatusGlow.getConfig()` 查看当前配置；`document.getElementById('dsh-status-glow-css')` 存在；总状态元素带 `dsh-status-glow` 类，思考旁元素没有该类。
@@ -185,6 +194,7 @@ dsh plugin --profile desktop add link:C:\Users\Administrator\dsh-status-glow
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
+| `0.5.0` | 2026-09-01 | 文案变动时机（同状态 5s / 状态交替立即）+ 老虎机滚动动画 + 按池特效 + 池整表编辑（设置页卡片化） |
 | `0.4.0` | 2026-09-01 | 随机允许重复（可关）+ 自定义文案池内容 + 自定义特效预设（设置页表单） |
 | `0.3.0` | 2026-09-01 | 随机文案池按状态分流（思考/工具/命令/兜底 + 加权无重复抽取 + 设置页开关 + 状态扩展接口） |
 | `0.2.0` | 2026-08-28 | 设置页快捷入口 + 可配置样式接口（纯色/渐变/辉光/动画）+ 精确命中最下方总状态 + 平滑彩虹渐变 |

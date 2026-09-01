@@ -402,5 +402,43 @@ check('applyPoolCustoms：新建池 + 并入已有池', () => {
   core.applyPoolCustoms({}, { thinking: 'not-array' })
 })
 
+check('applyPoolOverrides：整表覆盖（优先级高于追加）', () => {
+  const pools = { 'pool:thinking': { type: 'thinking', candidates: POOLS.thinking.candidates.slice() } }
+  core.applyPoolOverrides(pools, { thinking: [{ text: '只看这一条', weight: 1 }] })
+  assert.equal(pools['pool:thinking'].candidates.length, 1)
+  assert.equal(pools['pool:thinking'].candidates[0].text, '只看这一条')
+  assert.equal(pools['pool:thinking'].candidates[0].tags[0], 'custom')
+  // 空覆盖/非法不破坏原池
+  const pools2 = { 'pool:tool': { type: 'tool', candidates: [1, 2] } }
+  core.applyPoolOverrides(pools2, { tool: [] })
+  assert.equal(pools2['pool:tool'].candidates.length, 2)
+  core.applyPoolOverrides(null, null)
+})
+
+check('normalizePoolEffects：合法样式片段保留、非法过滤', () => {
+  const out = core.normalizePoolEffects({
+    thinking: { color: '#ff0000', gradientColors: [] },
+    tool: { gradientColors: ['#00f', '#0ff'], textShadow: 'soft-white' },
+    command: 'junk',
+    default: null,
+  })
+  assert.ok(out.thinking && out.thinking.color === '#ff0000')
+  assert.ok(out.tool && out.tool.gradientColors.length === 2)
+  assert.ok(!out.command && !out.default)
+  assert.deepEqual(core.normalizePoolEffects(null), {})
+})
+
+check('resolveCandidateStyle：usePools + 池特效 → 解析样式；否则 null', () => {
+  const cfg = core.normalizeConfig({
+    usePools: true,
+    poolEffects: { thinking: { color: '#ff0000', gradientColors: [] } },
+  })
+  const st = core.resolveCandidateStyle(cfg, 'thinking')
+  assert.ok(st && st.gradient === null && st.color === '#ff0000')
+  assert.equal(core.resolveCandidateStyle(cfg, 'tool'), null, '未配置池特效的状态回退 null')
+  const off = core.normalizeConfig({ usePools: false, poolEffects: { thinking: { color: '#0f0' } } })
+  assert.equal(core.resolveCandidateStyle(off, 'thinking'), null, 'usePools 关闭时不启用池特效')
+})
+
 console.log(`\n结果: ${passed} 通过, ${failed} 失败`)
 if (failed > 0) process.exit(1)
