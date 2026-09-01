@@ -3,6 +3,18 @@
 本项目的显著变更记录于此文件。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.7.0] - 2026-09-01
+
+### 修复
+
+- **纯色特效时显示应用原生蓝色渐变**：纯色路径原先 `removeProperty('background-image')`，会把应用自带的蓝色渐变背景露出来（表现为「特效消失」）。现改为 `background-image: none !important` 盖住
+- **按池特效/文案路由不准**：检测上下文补充「当前回合」扫描——爬到滚动容器（`md3f7g_scroll`/`wskvaw_scrollbody` 等）取最后 3 个子块文本，Think 标题 / 工具摘要 / 命令标识大多在回合内容里，比 turnstatus 邻居更可靠
+
+### 新增
+
+- **状态强制预览**：`window.__dshStatusGlow.debugSetStatus('tool'|'thinking'|'command'|'default'|'auto')`——立即把当前状态元素切换为该池文案 + 该池特效（`auto` 解除强制恢复自动检测）
+- **设置页「状态预览」区**：思考 / 工具 / 命令 / 兜底 按钮 + 「自动」，逐状态检查前端效果（需 agent 正在工作时状态元素存在）
+
 ## [0.6.0] - 2026-09-01
 
 ### 修复

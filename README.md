@@ -98,7 +98,8 @@ DSH 设置里新增「**状态文字**」分区（`lib/client.js` 通过 `ctx.sl
 
 `configure({ usePools: true })` 或设置页勾选「随机文案」后，总状态文案按状态从 `lib/text-pools.js` 抽取：
 
-- **状态分类**（`detectStatus`，启发式）：`thinking`（思考/Think/推理）、`tool`（工具/tool/正在调用）、`command`（命令/command/shell），未命中回退 `default` 池；检测上下文会剔除自身替换文案，避免反向污染；
+- **状态分类**（`detectStatus`，启发式）：`thinking`（思考/Think/推理）、`tool`（工具/tool/正在调用）、`command`（命令/command/shell），未命中回退 `default` 池；信号来自 turnstatus 邻居 + **当前回合内容**（滚动容器最后几个文本块，Think 标题/工具摘要/命令标识多在回合里）；检测上下文会剔除自身替换文案，避免反向污染；
+- **状态强制预览**（设置页「状态预览」按钮，或 `window.__dshStatusGlow.debugSetStatus('tool'|'auto')`）：逐个状态检查前端效果——立即把状态元素切换为该池文案与特效；「自动」恢复自动检测；
 - **变动时机**：同一状态下每 **5 秒**随机换文一次；状态交替（思考→工具→命令）时**立即**换文；
 - **换文动画**：老虎机式快速滚动（60–80ms/步、5–7 步后落地，行业常见的 status ticker / slot-machine 效果）；
 - **随机抽取**：Fisher-Yates 加权洗牌队列；默认**允许相邻重复**（`poolRepeat: true`，真随机）；设 `false` 时相邻不重复（含跨轮队首交换）；
@@ -194,6 +195,7 @@ dsh plugin --profile desktop add link:C:\Users\Administrator\dsh-status-glow
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
+| `0.7.0` | 2026-09-01 | 修复纯色特效露出应用蓝底 + 检测升级（当前回合扫描）+ 状态强制预览（设置页「状态预览」按钮） |
 | `0.6.0` | 2026-09-01 | 修复自定义配置跨重启丢失（宿主文件持久化 `~/.dsh/dsh-status-glow-config.json`，端口无关） |
 | `0.5.0` | 2026-09-01 | 文案变动时机（同状态 5s / 状态交替立即）+ 老虎机滚动动画 + 按池特效 + 池整表编辑（设置页卡片化） |
 | `0.4.0` | 2026-09-01 | 随机允许重复（可关）+ 自定义文案池内容 + 自定义特效预设（设置页表单） |
