@@ -51,6 +51,7 @@ window.postMessage({ __dshStatusGlow: 'config', config: {...} }, '*')  // 消息
 | `color` | string | `null` | 纯色（hex / `rgb()` / `hsl()` / 命名色）；仅当无有效渐变时生效 |
 | `textShadow` | `false` \| string \| array | `'soft-white'` | `false`/`'none'`/`''`=关闭；`'soft-white'`=柔和白光；字符串原串直接透传；数组=多层（元素可为原串或 `{color,x,y,blur}`，`x/y/blur` 默认 `0/0/8px`） |
 | `animation` | `null` \| string | `null` | `null`/`false`=关闭；`'flow'`=内置流动渐变（`dshsg-flow`）；其他字符串作为 CSS `animation` 原串透传 |
+| `usePools` | boolean | `false` | 随机文案池开关：`true` 时按状态（思考/工具/命令…）从 `lib/text-pools.js` 无重复抽取；`false` 使用静态 `text`（向后兼容） |
 
 所有字段提供默认值、类型校验与非法回退（例如 `gradientColors:['#ff0000']` 只有 1 色 → 回退默认彩虹渐变；`textShadow:42` → 回退柔和白光）。`window.__dshStatusGlow.getConfig()` 可读取当前归一化后的配置。
 
@@ -86,6 +87,30 @@ DSH 设置里新增「**状态文字**」分区（`lib/client.js` 通过 `ctx.sl
 
 UI 选择与文本持久化到 `localStorage`（`dsh-status-glow:ui`），完整配置由 `status.js` 持久化到 `dsh-status-glow:config`——页面刷新后自动恢复（origin 作用域；DSH 重启换随机端口会回到默认，可再用设置页点一次应用，或经下方 `configure()` 程序化设置）。
 
+## 随机文案池（按状态分流）
+
+`configure({ usePools: true })` 或设置页勾选「随机文案」后，总状态文案按状态从 `lib/text-pools.js` 抽取：
+
+- **状态分类**（`detectStatus`，启发式）：`thinking`（思考/Think/推理）、`tool`（工具/tool/正在调用）、`command`（命令/command/shell），未命中回退 `default` 池；
+- **无重复抽取**：每池一个 Fisher-Yates 洗牌队列，同状态连续触发不出现相邻重复（含跨轮队首交换）；
+- **权重**：`weight: 2` 的文案出现频率约为 `weight: 1` 的两倍（默认 1）；
+- **扩展入口**（状态机与池解耦，新增状态零主逻辑改动）：
+
+```js
+// 新增池（≥10 条，text/status 必填，weight/tags 可选）
+window.__dshStatusGlow.registerPool({
+  type: 'error',
+  candidates: [ { text: '出了点小差错，正在补救...', status: 'error', weight: 1, tags: [] }, /* … */ ],
+})
+// 新增状态：注册检测信号 + 池映射
+window.__dshStatusGlow.registerStatusType('error', {
+  detect: (ctxText) => /error|失败|异常/i.test(ctxText),
+  poolId: 'pool:error',
+})
+```
+
+池数据文件：`lib/text-pools.js`（`window.__DSH_STATUS_GLOW_TEXT_POOLS__`，宿主在 `status.js` 之前注入，保证就绪）。
+
 ## 调试（真机验证）
 
 浏览器端在选中元素变化时（30s 内最多 1 条）把选中目标的文本/类名/坐标/**计算样式** POST 到 `/dsh-status-glow/debug`，宿主端逐行追加到 **`~/.dsh/dsh-status-glow-debug.jsonl`**。`computed.color` 可确认文字实际渲染色（渐变文字为 `rgba(0,0,0,0)` 透明字色 + `background-image` 渐变，纯色为对应色值）；若命中结果与预期不符，把该文件内容发来即可精确定位。
@@ -114,7 +139,7 @@ dsh plugin --profile desktop add link:C:\Users\Administrator\dsh-status-glow
 
 ## 验证
 
-- 单元测试：`node test\status.test.mjs`（覆盖匹配/评分/选择/配置归一化与非法回退，39 项断言）。
+- 单元测试：`node test\status.test.mjs`（覆盖匹配/评分/选择/配置归一化与非法回退/随机文案池，44 项断言）。
 - 真机：让任意 agent 开始工作 → **最下方总状态**应显示自定义文本与样式；「思考」旁的状态文案保持原样（不替换、不加样式）。
 - 设置页：DSH 设置 → 「状态文字」→ 选特效 / 改文本 → 「应用」→ 总状态即时更新（无需重启）。
 - DevTools（F12）：`window.__dshStatusGlow.getConfig()` 查看当前配置；`document.getElementById('dsh-status-glow-css')` 存在；总状态元素带 `dsh-status-glow` 类，思考旁元素没有该类。

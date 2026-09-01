@@ -249,5 +249,86 @@ check('resolveStyles：纯解析预览接口（不修改全局状态）', () => 
   assert.equal(flow.backgroundSize, '200% auto')
 })
 
+console.log('== 6. 随机文案池：结构 / 无重复 / 权重 / 分类 ==')
+
+// 加载 lib/text-pools.js（module.exports 守卫，与 status.js 同款沙箱加载）
+const poolsSrc = fs.readFileSync(new URL('../lib/text-pools.js', import.meta.url), 'utf8')
+const poolsShim = { exports: {} }
+new Function('module', 'exports', 'globalThis', poolsSrc)(poolsShim, poolsShim.exports, globalThis)
+const POOLS = poolsShim.exports
+
+check('池结构：thinking/tool/command/default 每池 ≥10 条且字段完整', () => {
+  const types = ['thinking', 'tool', 'command', 'default']
+  for (const t of types) {
+    const pool = POOLS[t]
+    assert.ok(pool, `缺池 ${t}`)
+    assert.equal(pool.type, t)
+    assert.ok(pool.candidates.length >= 10, `${t} 池不足 10 条（${pool.candidates.length}）`)
+    for (const c of pool.candidates) {
+      assert.equal(typeof c.text, 'string')
+      assert.ok(c.text.length > 0)
+      assert.equal(c.status, t, '候选 status 必须与池 type 一致')
+      assert.ok(typeof c.weight !== 'number' || c.weight >= 1, 'weight 必须 ≥1')
+      assert.ok(Array.isArray(c.tags), 'tags 必须为数组')
+    }
+  }
+})
+
+check('无相邻重复：同池连续 50 次抽取无连续相同文案（含跨轮）', () => {
+  core.resetPools()
+  core.registerPool(POOLS.thinking)
+  let last = null
+  for (let i = 0; i < 50; i++) {
+    const item = core.draw('pool:thinking')
+    assert.ok(item && item.text, 'draw 应返回候选')
+    assert.notEqual(item.text, last, `第 ${i} 次与上次重复: ${item.text}`)
+    last = item.text
+  }
+  core.resetPools()
+})
+
+check('权重占比：weight=2 文案出现频率 ≈ weight=1 的 2 倍（±35%）', () => {
+  core.resetPools()
+  const pool = {
+    type: 'w',
+    candidates: [
+      { text: 'A', status: 'w', weight: 2 },
+      ...Array.from({ length: 10 }, (_, i) => ({ text: 'B' + i, status: 'w', weight: 1 })),
+    ],
+  }
+  core.registerPool(pool)
+  let countA = 0
+  const total = 300
+  for (let i = 0; i < total; i++) {
+    if (core.draw('pool:w').text === 'A') countA++
+  }
+  const pA = countA / total            // 理论 ≈ 2/12 ≈ 0.167
+  const pB = (total - countA) / total  // 理论 ≈ 10/12
+  const ratio = pA / (pB / 10)         // A 频率 : 单条 B 频率 ≈ 2
+  assert.ok(ratio >= 1.3 && ratio <= 2.7, `ratio=${ratio.toFixed(2)} 偏离 2.0 过多`)
+  core.resetPools()
+})
+
+check('classify：思考/工具/命令识别 + 未命中回退 default', () => {
+  core.resetPools()
+  core.registerStatusType('thinking', { detect: (t) => /思考|think|推理|analyzing/i.test(t) })
+  core.registerStatusType('tool', { detect: (t) => /工具|tool|正在调用|executing/i.test(t) })
+  core.registerStatusType('command', { detect: (t) => /命令|command|shell|终端|执行/i.test(t) })
+  assert.equal(core.classify('思考中...'), 'thinking')
+  assert.equal(core.classify('正在调用工具 foo'), 'tool')
+  assert.equal(core.classify('执行命令 ls'), 'command')
+  assert.equal(core.classify('随便什么文案'), 'default')
+  core.resetPools()
+})
+
+check('draw 未知池返回 null；usePools 配置归一化默认 false', () => {
+  core.resetPools()
+  assert.equal(core.draw('pool:nope'), null)
+  assert.equal(core.normalizeConfig(null).usePools, false)
+  assert.equal(core.normalizeConfig({ usePools: true }).usePools, true)
+  assert.equal(core.normalizeConfig({ usePools: 'yes' }).usePools, false)
+  core.resetPools()
+})
+
 console.log(`\n结果: ${passed} 通过, ${failed} 失败`)
 if (failed > 0) process.exit(1)
