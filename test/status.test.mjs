@@ -338,6 +338,21 @@ check('classify：思考/工具/命令识别 + 未命中回退 default', () => {
   core.resetPools()
 })
 
+check('classify（最后出现位置）：最新阶段优先，历史思考不抢先', () => {
+  core.resetPools()
+  core.registerStatusType('thinking', { regex: /思考|think/i })
+  core.registerStatusType('tool', { regex: /工具|tool/i })
+  core.registerStatusType('command', { regex: /命令|command/i })
+  // 混合上下文：后出现的（最新）胜出
+  assert.equal(core.classify('先思考，然后调用工具'), 'tool')
+  assert.equal(core.classify('调用工具后继续思考'), 'thinking')
+  assert.equal(core.classify('先思考再执行命令'), 'command')
+  assert.equal(core.classify('思考中'), 'thinking')
+  assert.equal(core.classify('历史回合都在思考，最近执行命令'), 'command')
+  assert.equal(core.classify('完全没有关键词'), 'default')
+  core.resetPools()
+})
+
 check('draw 未知池返回 null；usePools 配置归一化默认 false', () => {
   core.resetPools()
   assert.equal(core.draw('pool:nope'), null)

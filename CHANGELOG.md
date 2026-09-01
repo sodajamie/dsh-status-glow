@@ -3,6 +3,12 @@
 本项目的显著变更记录于此文件。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.0] - 2026-09-01
+
+### 修复
+
+- **状态总是判定为 thinking**：检测上下文包含整个会话文本（turnstatus 祖先 `md3f7g_scroll` 的 textContent 是全部对话），而每轮都有「思考」阶段，历史「思考/Think」按注册顺序抢先命中 thinking。分类改为**「最后出现位置」优先**——各状态关键词在上下文中最后一次出现的位置，最靠后者即当前阶段（工具/命令摘要总在最新内容里，位置更靠后）；`registerStatusType` 支持 `regex` 字段参与位置分类（自定义 `detect` 函数仍按注册顺序兜底）
+
 ## [0.7.0] - 2026-09-01
 
 ### 修复
